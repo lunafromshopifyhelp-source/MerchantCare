@@ -1,0 +1,24 @@
+
+.sr-overlay{position:fixed;inset:0;z-index:110;background:#10251bd9;display:grid;place-items:center;padding:18px;overflow-y:auto}
+.sr-modal{position:relative;width:min(100%,510px);max-height:94vh;overflow-y:auto;background:white;border-radius:16px;padding:35px;box-shadow:0 25px 80px #0003}
+.sr-close{position:absolute;right:18px;top:18px;border:0;background:#f0f5f1;color:#53675a;width:35px;height:35px;border-radius:50%;display:grid;place-items:center;cursor:pointer}
+.sr-label{font-size:10px;font-weight:800;letter-spacing:1.5px;color:#16834b}
+.sr-modal h2{font-family:Manrope,sans-serif;font-size:28px;letter-spacing:-1px;color:#172b22;margin:13px 0 8px}
+.sr-intro,.sr-success-screen>p{font-size:12px;line-height:1.8;color:#7b897f}
+.sr-form{display:flex;flex-direction:column;gap:9px;margin-top:22px}
+.sr-form label{font-size:11px;font-weight:700;color:#34483b;margin-top:5px}
+.sr-form input,.sr-form select,.sr-form textarea{width:100%;border:1px solid #e1e9e2;border-radius:8px;padding:13px;font-size:12px;outline:none;background:white;color:#172b22}
+.sr-form input:focus,.sr-form select:focus,.sr-form textarea:focus{border-color:#16834b}
+.sr-form textarea{resize:vertical;line-height:1.6}
+.sr-account{display:flex;align-items:center;gap:9px;padding:13px;background:#f0f8f2;color:#16834b;border-radius:8px;font-size:12px}
+.sr-submit{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;border:0;border-radius:8px;background:#16834b;color:white;padding:15px;font-size:12px;font-weight:700;margin-top:10px;cursor:pointer}
+.sr-submit:hover{background:#106b3c}
+.sr-submit:disabled{opacity:.6;cursor:wait}
+.sr-error{background:#fff0ef;color:#b42318;padding:12px;border-radius:7px;font-size:11px;line-height:1.6}
+.sr-privacy{display:flex;align-items:center;gap:7px;color:#849087;font-size:10px;margin-top:17px}
+.sr-success-screen{text-align:center;padding:20px 0 5px}
+.sr-success-icon{width:65px;height:65px;margin:0 auto 20px;border-radius:50%;background:#e5f6e9;color:#16834b;display:grid;place-items:center}
+.sr-success-screen h2{font-size:27px}
+.sr-reference{background:#eff8f1;border:1px dashed #8bcba0;border-radius:9px;padding:17px;margin:17px 0;color:#147b45;font-weight:800;font-size:16px;overflow-wrap:anywhere}
+.sr-help{font-size:11px!important}
+@media(max-width:600px){.sr-modal{padding:28px 20px}}
