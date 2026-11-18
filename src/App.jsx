@@ -3,15 +3,32 @@ import MerchantDashboard from "./MerchantDashboard";
 import AdminDashboard from "./AdminDashboard";
 import SupportRequest from "./SupportRequest";
 import Auth from "./Auth";
-import { useState } from "react";
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+
+import { useEffect, useState } from "react";
+
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useNavigate
+} from "react-router-dom";
+
 import { auth, db } from "./firebase";
+
+import {
+  onAuthStateChanged,
+  reload,
+  getIdToken
+} from "firebase/auth";
+
 import {
   collection,
   getDocs,
   query,
   where
 } from "firebase/firestore";
+
 import {
   ArrowRight,
   ShieldCheck,
@@ -32,7 +49,10 @@ import {
   ChevronRight,
   Lock
 } from "lucide-react";
+
 import "./App.css";
+
+const ADMIN_EMAIL = "lunafromshopify.help@gmail.com";
 
 const categories = [
   {
@@ -78,6 +98,38 @@ const categories = [
 ];
 
 /* =========================================
+   REUSABLE BRANDING
+========================================= */
+
+function Brand() {
+  return (
+    <div className="brand-group">
+      <a href="/" className="brand">
+        <span className="brand-icon">
+          <Headphones size={23} />
+        </span>
+
+        <span>
+          Merchant<span className="brand-green">Care</span>
+        </span>
+      </a>
+
+      <span className="brand-divider"></span>
+
+      <a
+        href="https://www.shopify.com"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="shopify-brand"
+        aria-label="Visit Shopify website"
+      >
+        <img src="/shopify-logo.svg" alt="Shopify" />
+      </a>
+    </div>
+  );
+}
+
+/* =========================================
    PUBLIC WEBSITE
 ========================================= */
 
@@ -87,26 +139,40 @@ function PublicHome() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
-  // REQUEST TRACKING STATES
   const [tracking, setTracking] = useState("");
   const [trackingResult, setTrackingResult] = useState(null);
   const [trackingLoading, setTrackingLoading] = useState(false);
   const [trackingError, setTrackingError] = useState("");
 
-  // FIRESTORE REQUEST TRACKING
+  /* =========================================
+     REQUEST TRACKING
+  ========================================= */
+
   const handleTrackRequest = async (e) => {
     e.preventDefault();
 
     const user = auth.currentUser;
 
     if (!user) {
-      setTrackingError("Please sign in to track your support request.");
+      setTrackingError(
+        "Please sign in to track your support request."
+      );
       setTrackingResult(null);
       return;
     }
 
     if (!tracking.trim()) {
-      setTrackingError("Please enter your support reference number.");
+      setTrackingError(
+        "Please enter your support reference number."
+      );
+      return;
+    }
+
+    if (!user.emailVerified) {
+      setTrackingError(
+        "Please verify your email address before tracking requests."
+      );
+      setTrackingResult(null);
       return;
     }
 
@@ -118,7 +184,11 @@ function PublicHome() {
       const requestQuery = query(
         collection(db, "requests"),
         where("uid", "==", user.uid),
-        where("reference", "==", tracking.trim().toUpperCase())
+        where(
+          "reference",
+          "==",
+          tracking.trim().toUpperCase()
+        )
       );
 
       const snapshot = await getDocs(requestQuery);
@@ -128,7 +198,10 @@ function PublicHome() {
           "No request was found with that reference number. Check the number and try again."
         );
       } else {
-        setTrackingResult(snapshot.docs[0].data());
+        setTrackingResult({
+          id: snapshot.docs[0].id,
+          ...snapshot.docs[0].data()
+        });
       }
     } catch (error) {
       console.error("Request tracking error:", error);
@@ -141,6 +214,10 @@ function PublicHome() {
     }
   };
 
+  /* =========================================
+     REQUEST STATUS
+  ========================================= */
+
   const getStatusLabel = (status) => {
     const statuses = {
       open: "Request received",
@@ -152,6 +229,10 @@ function PublicHome() {
     return statuses[status] || status || "Awaiting update";
   };
 
+  /* =========================================
+     DATE FORMATTING
+  ========================================= */
+
   const getFormattedDate = (timestamp) => {
     if (!timestamp?.toDate) {
       return "Date unavailable";
@@ -160,19 +241,55 @@ function PublicHome() {
     return timestamp.toDate().toLocaleString();
   };
 
+  /* =========================================
+     AUTHENTICATION CHECK
+  ========================================= */
+
+  const navigateToDashboard = async (path) => {
+    const user = auth.currentUser;
+
+    if (!user) {
+      setTrackingError(
+        "Please sign in before accessing your dashboard."
+      );
+      setTrackingResult(null);
+      return;
+    }
+
+    if (!user.emailVerified) {
+      setTrackingError(
+        "Please verify your email address before accessing your dashboard."
+      );
+      setTrackingResult(null);
+      return;
+    }
+
+    const isAdmin =
+      user.email?.toLowerCase() === ADMIN_EMAIL;
+
+    if (path === "/admin" && !isAdmin) {
+      setTrackingError(
+        "You do not have administrator access."
+      );
+      return;
+    }
+
+    if (path === "/merchant" && isAdmin) {
+      navigate("/admin");
+      return;
+    }
+
+    setMenuOpen(false);
+    navigate(path);
+  };
+
   return (
     <div className="app">
 
       {/* NAVIGATION */}
+
       <header className="navbar">
-        <a href="/" className="brand">
-          <span className="brand-icon">
-            <Headphones size={23} />
-          </span>
-          <span>
-            Merchant<span className="brand-green">Care</span>
-          </span>
-        </a>
+        <Brand />
 
         <button
           className="mobile-menu"
@@ -186,12 +303,15 @@ function PublicHome() {
           <a href="#services" onClick={() => setMenuOpen(false)}>
             Services
           </a>
+
           <a href="#how" onClick={() => setMenuOpen(false)}>
             How it works
           </a>
+
           <a href="#track" onClick={() => setMenuOpen(false)}>
             Track request
           </a>
+
           <a href="#faq" onClick={() => setMenuOpen(false)}>
             Help centre
           </a>
@@ -202,20 +322,14 @@ function PublicHome() {
 
           <button
             className="merchant-dashboard-open-button"
-            onClick={() => {
-              setMenuOpen(false);
-              navigate("/merchant");
-            }}
+            onClick={() => navigateToDashboard("/merchant")}
           >
             My Dashboard
           </button>
 
           <button
             className="merchant-dashboard-open-button"
-            onClick={() => {
-              setMenuOpen(false);
-              navigate("/admin");
-            }}
+            onClick={() => navigateToDashboard("/admin")}
           >
             Admin Panel
           </button>
@@ -232,9 +346,9 @@ function PublicHome() {
       <main>
 
         {/* HERO SECTION */}
+
         <section className="hero">
           <div className="hero-content">
-
             <div className="eyebrow">
               <span className="pulse"></span>
               INDEPENDENT MERCHANT SUPPORT
@@ -268,24 +382,24 @@ function PublicHome() {
               <span>
                 <ShieldCheck size={17} /> Private communication
               </span>
+
               <span>
                 <Clock size={17} /> 24-hour response target
               </span>
             </div>
-
           </div>
 
           <div className="hero-visual">
             <div className="visual-glow"></div>
 
             <div className="dashboard-card">
-
               <div className="dash-top">
                 <div>
                   <span className="dash-dot"></span>
                   <span className="dash-dot"></span>
                   <span className="dash-dot"></span>
                 </div>
+
                 <span>SUPPORT OVERVIEW</span>
               </div>
 
@@ -294,6 +408,7 @@ function PublicHome() {
                   <small>YOUR SUPPORT SPACE</small>
                   <h3>How can we help?</h3>
                 </div>
+
                 <div className="dash-avatar">
                   <Headphones size={21} />
                 </div>
@@ -303,10 +418,12 @@ function PublicHome() {
                 <div className="stat-icon">
                   <MessageCircle size={20} />
                 </div>
+
                 <div>
                   <small>Support requests</small>
                   <strong>One place. Every update.</strong>
                 </div>
+
                 <CheckCircle className="stat-check" size={20} />
               </div>
 
@@ -314,10 +431,12 @@ function PublicHome() {
                 <div className="stat-icon light">
                   <Lock size={20} />
                 </div>
+
                 <div>
                   <small>Communication</small>
                   <strong>Private and organised</strong>
                 </div>
+
                 <ShieldCheck className="stat-check" size={20} />
               </div>
 
@@ -326,6 +445,7 @@ function PublicHome() {
                   <span>Support experience</span>
                   <span>Connected</span>
                 </div>
+
                 <div className="progress-track">
                   <div></div>
                 </div>
@@ -336,38 +456,42 @@ function PublicHome() {
                   <span className="online-dot"></span>
                   Support workspace
                 </span>
+
                 <span>MerchantCare</span>
               </div>
-
             </div>
 
             <div className="floating-card">
               <div className="float-icon">
                 <MessageCircle size={18} />
               </div>
+
               <div>
                 <strong>Direct support</strong>
                 <small>Chat from your dashboard</small>
               </div>
             </div>
-
           </div>
         </section>
 
         {/* STATISTICS STRIP */}
+
         <section className="stats-strip">
           <div>
             <strong>01</strong>
             <span>Submit your issue</span>
           </div>
+
           <div>
             <strong>02</strong>
             <span>Get a reference number</span>
           </div>
+
           <div>
             <strong>03</strong>
             <span>Chat and track progress</span>
           </div>
+
           <div>
             <strong>04</strong>
             <span>Get your resolution</span>
@@ -375,10 +499,12 @@ function PublicHome() {
         </section>
 
         {/* SERVICES SECTION */}
-        <section className="services section" id="services">
 
+        <section className="services section" id="services">
           <div className="section-heading">
-            <span className="section-label">WHAT WE HELP WITH</span>
+            <span className="section-label">
+              WHAT WE HELP WITH
+            </span>
 
             <h2>
               Support for the challenges<br />
@@ -405,7 +531,6 @@ function PublicHome() {
                   </span>
 
                   <strong>{item.name}</strong>
-
                   <p>{item.desc}</p>
 
                   <span className="card-arrow">
@@ -415,14 +540,15 @@ function PublicHome() {
               );
             })}
           </div>
-
         </section>
 
         {/* HOW IT WORKS SECTION */}
-        <section className="process section" id="how">
 
+        <section className="process section" id="how">
           <div className="process-copy">
-            <span className="section-label">SIMPLE PROCESS</span>
+            <span className="section-label">
+              SIMPLE PROCESS
+            </span>
 
             <h2>
               Your support journey,<br />
@@ -467,6 +593,7 @@ function PublicHome() {
             ].map(([number, title, desc]) => (
               <div className="step" key={number}>
                 <span>{number}</span>
+
                 <div>
                   <strong>{title}</strong>
                   <p>{desc}</p>
@@ -474,20 +601,20 @@ function PublicHome() {
               </div>
             ))}
           </div>
-
         </section>
 
         {/* REQUEST TRACKING SECTION */}
+
         <section className="track-section section" id="track">
-
           <div className="track-card">
-
             <div className="track-icon">
               <Search size={25} />
             </div>
 
             <div className="track-copy">
-              <span className="section-label">REQUEST TRACKING</span>
+              <span className="section-label">
+                REQUEST TRACKING
+              </span>
 
               <h2>Already have a request?</h2>
 
@@ -518,7 +645,8 @@ function PublicHome() {
               >
                 {trackingLoading
                   ? "Checking..."
-                  : <>Track request <ArrowRight size={16} /></>}
+                  : <>Track request <ArrowRight size={16} /></>
+                }
               </button>
             </form>
 
@@ -530,20 +658,18 @@ function PublicHome() {
 
             {trackingResult && (
               <div className="tracking-result">
-
                 <div className="tracking-result-heading">
                   <div>
                     <small>SUPPORT REFERENCE</small>
                     <h3>{trackingResult.reference}</h3>
                   </div>
 
-                  <span className={`tracking-status ${trackingResult.status}`}>
+                  <span className={"tracking-status " + trackingResult.status}>
                     {getStatusLabel(trackingResult.status)}
                   </span>
                 </div>
 
                 <div className="tracking-details">
-
                   <div>
                     <span>Store</span>
                     <strong>
@@ -564,7 +690,6 @@ function PublicHome() {
                       {getFormattedDate(trackingResult.createdAt)}
                     </strong>
                   </div>
-
                 </div>
 
                 <div className="tracking-description">
@@ -574,10 +699,12 @@ function PublicHome() {
 
                 <div className="tracking-update">
                   <CheckCircle size={20} />
+
                   <div>
                     <strong>
                       {getStatusLabel(trackingResult.status)}
                     </strong>
+
                     <p>
                       {trackingResult.status === "open"
                         ? "Your request has been received and is awaiting review."
@@ -587,21 +714,19 @@ function PublicHome() {
                         ? "Your support request has been resolved."
                         : trackingResult.status === "closed"
                         ? "This support request has been closed."
-                        : "Your request status is being updated."}
+                        : "Your request status is being updated."
+                      }
                     </p>
                   </div>
                 </div>
-
               </div>
             )}
-
           </div>
-
         </section>
 
         {/* CALL TO ACTION */}
-        <section className="cta-section">
 
+        <section className="cta-section">
           <div>
             <span className="section-label">
               LET'S GET YOUR STORE MOVING
@@ -623,23 +748,25 @@ function PublicHome() {
           >
             Get started <ArrowRight size={17} />
           </button>
-
         </section>
 
         {/* FAQ SECTION */}
-        <section className="faq section" id="faq">
 
+        <section className="faq section" id="faq">
           <div className="section-heading">
-            <span className="section-label">NEED TO KNOW</span>
+            <span className="section-label">
+              NEED TO KNOW
+            </span>
+
             <h2>Frequently asked questions</h2>
           </div>
 
           <div className="faq-list">
-
             <details>
               <summary>
                 Is MerchantCare Shopify's official support team?
               </summary>
+
               <p>
                 No. MerchantCare is an independent support service and is
                 not affiliated with, endorsed by, or sponsored by Shopify.
@@ -650,6 +777,7 @@ function PublicHome() {
               <summary>
                 Do I need to share my Shopify password?
               </summary>
+
               <p>
                 No. Never share your Shopify password with us. If store
                 access is required for a task, we will discuss an appropriate
@@ -661,6 +789,7 @@ function PublicHome() {
               <summary>
                 Where will I communicate with the support team?
               </summary>
+
               <p>
                 Our intended support workflow keeps your conversations
                 inside the MerchantCare website. Email is used for
@@ -672,31 +801,24 @@ function PublicHome() {
               <summary>
                 How do I follow my request?
               </summary>
+
               <p>
                 Use your unique support reference or sign in to your
                 account to follow the request and its updates.
               </p>
             </details>
-
           </div>
-
         </section>
-
       </main>
 
       {/* FOOTER */}
+
       <footer className="footer">
+        <Brand />
 
-        <a href="/" className="brand">
-          <span className="brand-icon">
-            <Headphones size={21} />
-          </span>
-          <span>
-            Merchant<span className="brand-green">Care</span>
-          </span>
-        </a>
-
-        <p>Independent support for online merchants.</p>
+        <p>
+          Independent support for online merchants.
+        </p>
 
         <span className="footer-copy">
           © 2026 MerchantCare. All rights reserved.
@@ -706,15 +828,14 @@ function PublicHome() {
           MerchantCare is an independent service and is not affiliated
           with or endorsed by Shopify.
         </p>
-
       </footer>
 
-      {/* FIREBASE-CONNECTED SUPPORT REQUEST MODAL */}
+      {/* SUPPORT REQUEST MODAL */}
+
       <SupportRequest
         open={showForm}
         onClose={() => setShowForm(false)}
       />
-
     </div>
   );
 }
@@ -724,18 +845,89 @@ function PublicHome() {
 ========================================= */
 
 function AppRoutes() {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        if (active) {
+          setCurrentUser(null);
+          setAuthLoading(false);
+        }
+        return;
+      }
+
+      try {
+        await reload(user);
+        await getIdToken(user, true);
+      } catch (error) {
+        console.error("Authentication refresh error:", error);
+      }
+
+      if (active) {
+        setCurrentUser(auth.currentUser);
+        setAuthLoading(false);
+      }
+    });
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
+
+  if (authLoading) {
+    return <div className="auth-loading">Loading...</div>;
+  }
+
+  const verified = currentUser?.emailVerified === true;
+
+  const isAdmin =
+    verified &&
+    currentUser?.email?.toLowerCase() === ADMIN_EMAIL;
+
   return (
     <Routes>
-      <Route path="/" element={<PublicHome />} />
+      <Route
+        path="/"
+        element={
+          verified ? (
+            <Navigate
+              to={isAdmin ? "/admin" : "/merchant"}
+              replace
+            />
+          ) : (
+            <PublicHome />
+          )
+        }
+      />
 
       <Route
         path="/merchant"
-        element={<MerchantDashboard />}
+        element={
+          !verified || isAdmin ? (
+            <Navigate
+              to={isAdmin ? "/admin" : "/"}
+              replace
+            />
+          ) : (
+            <MerchantDashboard />
+          )
+        }
       />
 
       <Route
         path="/admin"
-        element={<AdminDashboard />}
+        element={
+          isAdmin ? (
+            <AdminDashboard />
+          ) : (
+            <Navigate to="/" replace />
+          )
+        }
       />
 
       <Route
